@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -o pipefail
 
 readonly _q='?'
 readonly _a='❯'
@@ -73,7 +73,12 @@ pen() {
     printf "%b%s%b%b" "${format_code}" "${text}" "${reset_code}" "${new_line}"
 }
 
-run() {
+run() {    
+    if [[ $DRY_RUN == true ]]; then
+        pen -n red "▶ "
+        pen "$@"
+        return 0
+    fi
     local outvar_name errvar_name
     local -n outvar errvar # Declare namerefs (will be assigned below if needed)
     local cmd
@@ -318,59 +323,64 @@ seek() {
     outvar="$answer"
 }
 
-# Check if script is run as root (except in dry-run mode)
-if [[ $EUID -ne 0 && $DRY_RUN == false ]]; then
-    throw "This script must be run as root"
-    exit 1
-fi
-
-pen magenta "============================================"
-pen magenta "=      Ubuntu Server Hardening Script      ="
-pen magenta "============================================"
-
 # Function to print section headers
 section() {
     line
     pen blue bold "▶ $1"
-    pen blue bold "$(printf '=%.0s' {1..50})"
+    pen blue bold "$(printf '–%.0s' {1..80})"
 }
 
 # Function to print success messages
 success() {
-    if [ "$DRY_RUN" = true ]; then
-        pen -n yellow "[DRY-RUN]: "
-    fi
     check "$1"
 }
 
 # Function to print info messages
 info() {
-    if [ "$DRY_RUN" = true ]; then
-        pen -n yellow "[DRY-RUN]: "
-    fi
-    pen -n cyan "${_info:-✓} "
-    pen "$i"
+    pen -n cyan "${_info:-ℹ} "
+    pen "$1"
 }
 
 # Function to print warning messages
 warning() {
-    if [ "$DRY_RUN" = true ]; then
-        pen -n yellow "[DRY-RUN]: "
-    fi
     warn "$1"
 }
+
+# Check if script is run as root (except in dry-run mode)
+if [[ $EUID -ne 0 ]]; then
+    throw "This script must be run as root"
+    exit 1
+fi
+
+for arg in "$@"; do
+    if [[ "$arg" == "--dry-run" ]]; then
+        DRY_RUN=true
+        break
+    else
+        pen "Usage: $0 [--dry-run]"
+        pen "Options:"
+        pen "  --dry-run    Show what would be done without making changes"
+        exit 1
+    fi
+done
+
+line
+pen purple "================================================================================"
+pen purple "=                                                                              ="
+pen purple "=                     Ubuntu Server Hardening Script                           ="
+pen purple "=                                                                              ="
+pen purple "================================================================================"
+line
 
 # Step 1: Create non-root user
 section "Creating a non-root user"
 
 new_user() {
-    set +e  # Temporarily disable
     request NEW_USER "Enter username for the new non-root user"
     if id "$NEW_USER" &>/dev/null; then
         warning "User '$NEW_USER' already exists"
         return 1
     else
-        set -e  # Re-enable
         run "adduser $NEW_USER"
         run "usermod -aG sudo $NEW_USER"
         return 0
@@ -441,7 +451,6 @@ if ! grep -q "^Include $SSH_CONFIG_DIR/\*.conf" "$SSH_CONFIG"; then
 fi
 
 success "SSH configuration hardened"
-
 
 restart_ssh() {
     # Check if ssh.socket exists and is enabled (socket activation)
@@ -528,8 +537,8 @@ enabled = true
 mode = aggressive
 EOF"
 
-run "systemctl enable fail2ban"
-run "systemctl restart fail2ban"
+info "Enabling and restarting fail2ban"
+run "systemctl enable --now fail2ban"
 success "fail2ban configured and started"
 
 # Step 8: Configure firewall
@@ -566,7 +575,7 @@ section "Summary"
 
 pen green "Server hardening completed!"
 line
-info "The following security measures have been applied:"
+pen "The following security measures have been applied:"
 pen "  - Created non-root user: $NEW_USER"
 pen "  - SSH hardened (root login disabled, password auth disabled)"
 pen "  - Custom SSH port: $SSH_PORT"
@@ -577,18 +586,23 @@ line
 
 run ---out IP "curl ipinfo.io/ip"
 
-warning "IMPORTANT: Before leaving this session you should first check that you can login"
-warning "correctly with your new user. To manually test your SSH connection (from another terminal):"
-pen "  ssh -p $SSH_PORT $NEW_USER@$IP"
+warning "IMPORTANT"
+pen "Before leaving this session you should first check that you can login correctly"
+pen "with your new user. To manually test your SSH connection (from another terminal):"
+pen 245 "    ssh -p $SSH_PORT $NEW_USER@$IP"
 
 # Audit
 section "Audit"
 
-info "You can run a quick security audit online on https://auditvps.com/, or locally by running"
-info "'curl -s https://auditvps.com/audit.sh | bash' (you might have to 'apt install -y jq' first)."
+pen "You can run a quick security audit on https://auditvps.com/, or locally by running:"
+pen 245 "    curl -s https://auditvps.com/audit.sh | bash"
+pen "    (you might have to \`$(pen 245 "apt install -y jq")\` first)."
 
 line
-pen magenta "============================================"
-pen magenta "=    Thank you for using Servo script!     ="
-pen magenta "============================================"
+line
+pen purple "================================================================================"
+pen purple "=                                                                              ="
+pen purple "=                      Thank you for using Servo script!                       ="
+pen purple "=                                                                              ="
+pen purple "================================================================================"
 line
