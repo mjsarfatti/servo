@@ -8,10 +8,10 @@ A simple and interactive script to set up and harden a fresh Ubuntu VPS.
 
 1. _SSH_ into your machine, as _root_.
 
-2. Download the latest release (currently: **v0.0.0**) of `servo.sh`:
+2. Download the latest release (currently: **v0.0.1**) of `servo.sh`:
 
 ```bash
-$ curl -O https://raw.githubusercontent.com/mjsarfatti/servo/refs/tags/v0.0.0/dist/servo.sh
+$ curl -O https://raw.githubusercontent.com/mjsarfatti/servo/refs/tags/v0.0.1/dist/servo.sh
 ```
 
 3. Make sure the script is executable, then run it:
